@@ -6,13 +6,14 @@ on:
   workflow_dispatch:
 
 permissions:
+  contents: read
   issues: write
 
 jobs:
   linkChecker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check links
         id: lychee
@@ -27,12 +28,26 @@ jobs:
             README.md README.zh-CN.md
           fail: false
 
-      - name: Create issue on broken links
+      # Broken links are reported, not treated as a failed run: an issue when
+      # the repository has Issues enabled (forks usually don't), otherwise a
+      # warning that points at the job summary lychee already wrote.
+      - name: Check whether Issues are enabled
+        id: repo
         if: steps.lychee.outputs.exit_code != 0
-        uses: peter-evans/create-issue-from-file@v5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "has_issues=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .has_issues)" >> "$GITHUB_OUTPUT"
+
+      - name: Create issue on broken links
+        if: steps.lychee.outputs.exit_code != 0 && steps.repo.outputs.has_issues == 'true'
+        uses: peter-evans/create-issue-from-file@v6
         with:
           title: '🔗 Broken links detected'
           content-filepath: ./lychee/out.md
           labels: |
             link-check
             automated
+
+      - name: Report broken links without Issues
+        if: steps.lychee.outputs.exit_code != 0 && steps.repo.outputs.has_issues != 'true'
+        run: echo "::warning title=Broken links::lychee found broken links; Issues are disabled here, so see the job summary for the list."

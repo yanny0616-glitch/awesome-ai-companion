@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   update:
+    # The chart is the upstream repository's star history; forks can't (and needn't) refresh it.
+    if: github.repository == 'DasterProkio/awesome-ai-companion'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
